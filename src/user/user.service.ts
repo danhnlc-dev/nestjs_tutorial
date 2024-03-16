@@ -79,7 +79,7 @@ export class UserService {
     );
   }
 
-  buidlUserResponse(user: UserEntity): UserResponseInterface {
+  buildUserResponse(user: UserEntity): UserResponseInterface {
     return {
       user: {
         ...user,
