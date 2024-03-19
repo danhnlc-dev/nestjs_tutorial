@@ -1,4 +1,4 @@
-import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
+import { HttpStatus, Injectable } from '@nestjs/common';
 import { CreateArticleDto } from '@app/article/dto/createArticle.dto';
 import { ArticleEntity } from '@app/article/article.entity';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -8,6 +8,8 @@ import { ArticleResponseInterface } from '@app/article/types/articleResponse.int
 import slugify from 'slugify';
 import { UpdateArticleDto } from '@app/article/dto/updateArticle.dto';
 import { ArticlesResponseInterface } from '@app/article/types/articlesResponse.interface';
+import { FollowEntity } from '@app/profile/follow.entity';
+import { ErrorService } from '@app/shared/services/error.service';
 
 @Injectable()
 export class ArticleService {
@@ -16,6 +18,9 @@ export class ArticleService {
     private readonly articleRepository: Repository<ArticleEntity>,
     @InjectRepository(UserEntity)
     private readonly userRepository: Repository<UserEntity>,
+    @InjectRepository(FollowEntity)
+    private readonly followRepository: Repository<FollowEntity>,
+    private readonly errorService: ErrorService,
   ) {}
 
   async findAll(
@@ -71,7 +76,7 @@ export class ArticleService {
       queryBuilder.offset(query.offset);
     }
 
-    if (!articleIds.length) {
+    if (!articleIds.length && currentUser) {
       const user = await this.userRepository.findOne({
         where: { id: currentUser.id },
         relations: ['favorites'],
@@ -93,6 +98,41 @@ export class ArticleService {
       articles: articlesWithFavorites,
       articlesCount,
     };
+  }
+
+  async getFeed(
+    userId: number,
+    query: any,
+  ): Promise<ArticlesResponseInterface> {
+    const follows = await this.followRepository.find({
+      where: { followerId: userId },
+    });
+
+    if (!follows.length) {
+      return { articles: [], articlesCount: 0 };
+    }
+
+    const followingUserIds = follows.map((follow) => follow.followingId);
+    const queryBuilder = this.articleRepository
+      .createQueryBuilder('articles')
+      .leftJoinAndSelect('articles.author', 'author')
+      .where('articles.authorId IN (:...ids)', { ids: followingUserIds });
+
+    queryBuilder.orderBy('articles.createdAt', 'DESC');
+
+    const articlesCount = await queryBuilder.getCount();
+
+    if (query.limit) {
+      queryBuilder.limit(query.limit);
+    }
+
+    if (query.offset) {
+      queryBuilder.offset(query.offset);
+    }
+
+    const articles = await queryBuilder.getMany();
+
+    return { articles, articlesCount };
   }
 
   async createArticle(
@@ -120,11 +160,17 @@ export class ArticleService {
   async deleteArticle(userId: number, slug: string): Promise<DeleteResult> {
     const article = await this.findBySlug(slug);
     if (!article) {
-      throw new HttpException('Article does not exist', HttpStatus.NOT_FOUND);
+      this.errorService.errorResponse(
+        'Article does not exist',
+        HttpStatus.NOT_FOUND,
+      );
     }
 
     if (article.author.id !== userId) {
-      throw new HttpException('You are not an author', HttpStatus.FORBIDDEN);
+      this.errorService.errorResponse(
+        'You are not an author',
+        HttpStatus.FORBIDDEN,
+      );
     }
 
     return await this.articleRepository.delete({ slug });
@@ -137,11 +183,17 @@ export class ArticleService {
   ): Promise<ArticleEntity> {
     const article = await this.findBySlug(slug);
     if (!article) {
-      throw new HttpException('Article does not exist', HttpStatus.NOT_FOUND);
+      this.errorService.errorResponse(
+        'Article does not exist',
+        HttpStatus.NOT_FOUND,
+      );
     }
 
     if (article.author.id !== userId) {
-      throw new HttpException('You are not an author', HttpStatus.FORBIDDEN);
+      this.errorService.errorResponse(
+        'You are not an author',
+        HttpStatus.FORBIDDEN,
+      );
     }
 
     Object.assign(article, updatedArticleDto);

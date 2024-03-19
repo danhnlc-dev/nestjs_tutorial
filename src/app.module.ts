@@ -6,7 +6,9 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import dbConfig from '@app/config/typeorm.config';
 import { UserModule } from '@app/user/user.module';
 import { AuthMiddleware } from '@app/user/middlewares/auth.middleware';
-import { ArticleModule } from './article/article.module';
+import { ArticleModule } from '@app/article/article.module';
+import { ProfileModule } from '@app/profile/profile.module';
+import { ErrorService } from '@app/shared/services/error.service';
 
 @Module({
   imports: [
@@ -14,9 +16,11 @@ import { ArticleModule } from './article/article.module';
     TagModule,
     UserModule,
     ArticleModule,
+    ProfileModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [AppService, ErrorService],
+  exports: [ErrorService],
 })
 export class AppModule {
   configure(consumer: MiddlewareConsumer) {

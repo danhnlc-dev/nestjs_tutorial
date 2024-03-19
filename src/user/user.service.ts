@@ -1,4 +1,4 @@
-import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
+import { HttpStatus, Injectable } from '@nestjs/common';
 import { CreateUserDTO } from '@app/user/dto/createUser.dto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { UserEntity } from '@app/user/user.entity';
@@ -9,12 +9,14 @@ import { UserResponseInterface } from '@app/user/types/userResponse.interface';
 import { LoginDto } from '@app/user/dto/login.dto';
 import { compare } from 'bcrypt';
 import { UpdateUserDTO } from '@app/user/dto/updateUser.dt';
+import { ErrorService } from '@app/shared/services/error.service';
 
 @Injectable()
 export class UserService {
   constructor(
     @InjectRepository(UserEntity)
     private readonly userRepository: Repository<UserEntity>,
+    private readonly errorService: ErrorService,
   ) {}
 
   async createUser(createUserDto: CreateUserDTO): Promise<UserEntity> {
@@ -26,7 +28,7 @@ export class UserService {
     });
 
     if (userByUsername || userByEmail) {
-      throw new HttpException(
+      this.errorService.errorResponse(
         'username or email are taken',
         HttpStatus.UNPROCESSABLE_ENTITY,
       );
@@ -46,7 +48,7 @@ export class UserService {
     });
 
     if (!user) {
-      throw new HttpException(
+      this.errorService.errorResponse(
         'Credentials are not valid',
         HttpStatus.UNPROCESSABLE_ENTITY,
       );
@@ -55,7 +57,7 @@ export class UserService {
     const isPasswordCorrect = await compare(loginDto.password, user.password);
 
     if (!isPasswordCorrect) {
-      throw new HttpException(
+      this.errorService.errorResponse(
         'Credentials are not valid',
         HttpStatus.UNPROCESSABLE_ENTITY,
       );
